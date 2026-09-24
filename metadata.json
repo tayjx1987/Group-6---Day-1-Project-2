@@ -1,0 +1,6 @@
+{
+  "name": "SG HDB Resale & Budget Map Explorer",
+  "description": "Explore Singapore HDB resale flat transactions, filter by budget and town, visualize price heatbands on OneMap tiles, and calculate mortgage affordability.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
