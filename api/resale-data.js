@@ -15,12 +15,20 @@ export default async function handler(req, res) {
       apiUrl += `&filters=${encodeURIComponent(filters)}`;
     }
 
+    const headers = {
+      'Accept': 'application/json',
+      'User-Agent': 'SGHDBResaleMapExplorer/1.0'
+    };
+
+    if (process.env.LTA_ACCOUNT_KEY && process.env.LTA_ACCOUNT_KEY.trim() !== '') {
+      const key = process.env.LTA_ACCOUNT_KEY.trim();
+      headers['Authorization'] = key.startsWith('Bearer ') ? key : `Bearer ${key}`;
+      headers['AccountKey'] = key;
+    }
+
     const response = await fetch(apiUrl, {
       signal: controller.signal,
-      headers: {
-        'Accept': 'application/json',
-        'User-Agent': 'SGHDBResaleMapExplorer/1.0'
-      }
+      headers
     });
     clearTimeout(timeoutId);
 

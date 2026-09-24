@@ -8,6 +8,7 @@ import dotenv from 'dotenv';
 import healthHandler from './api/health.js';
 import geocodeHandler from './api/geocode.js';
 import resaleHandler from './api/resale-data.js';
+import tileHandler from './api/tile.js';
 
 dotenv.config();
 
@@ -32,6 +33,19 @@ async function startServer() {
 
   app.get('/api/resale-data', (req, res) => {
     return resaleHandler(req, res);
+  });
+
+  app.get('/api/tile', (req, res) => {
+    return tileHandler(req, res);
+  });
+
+  // Support path parameter style /api/tiles/:style/:z/:x/:y.png
+  app.get('/api/tiles/:style/:z/:x/:y.png', (req, res) => {
+    req.query.style = req.params.style;
+    req.query.z = req.params.z;
+    req.query.x = req.params.x;
+    req.query.y = req.params.y;
+    return tileHandler(req, res);
   });
 
   if (!isProduction) {

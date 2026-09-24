@@ -33,9 +33,18 @@ export default async function handler(req, res) {
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const oneMapHeaders = {
+      'Accept': 'application/json',
+      'User-Agent': 'SGHDBResaleMapExplorer/1.0'
+    };
+    if (keyConfigured) {
+      const token = process.env.LTA_ACCOUNT_KEY.trim();
+      oneMapHeaders['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+      oneMapHeaders['AccountKey'] = token;
+    }
     const oneMapResp = await fetch(
       'https://www.onemap.gov.sg/api/common/elastic/search?searchVal=Ang+Mo+Kio&returnGeom=Y&getAddrDetails=Y&pageNum=1',
-      { signal: controller.signal }
+      { signal: controller.signal, headers: oneMapHeaders }
     );
     clearTimeout(timeoutId);
     oneMapStatus = oneMapResp.status;

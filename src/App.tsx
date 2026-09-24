@@ -279,8 +279,8 @@ export default function App() {
     // Add Zoom control to top right
     L.control.zoom({ position: 'topright' }).addTo(map);
 
-    // Initial tile layer (OneMap Night Base Tile)
-    const initialTileUrl = 'https://www.onemap.gov.sg/maps/tiles/Night/{z}/{x}/{y}.png';
+    // Initial tile layer retrieved from OneMap API via backend proxy referring to Vercel variables
+    const initialTileUrl = '/api/tiles/Night/{z}/{x}/{y}.png';
     const tileLayer = L.tileLayer(initialTileUrl, {
       maxZoom: 18,
       minZoom: 11,
@@ -346,11 +346,11 @@ export default function App() {
     };
   }, []);
 
-  // Update map tile theme
+  // Update map tile theme retrieved from OneMap API
   const toggleMapTheme = (theme: 'Default' | 'Night') => {
     setMapTheme(theme);
     if (tileLayerRef && mapInstanceRef.current) {
-      tileLayerRef.setUrl(`https://www.onemap.gov.sg/maps/tiles/${theme}/{z}/{x}/{y}.png`);
+      tileLayerRef.setUrl(`/api/tiles/${theme}/{z}/{x}/{y}.png`);
     }
   };
 
