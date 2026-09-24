@@ -24,7 +24,9 @@ import {
   TrendingUp,
   RefreshCw,
   LocateFixed,
-  Train
+  Train,
+  Sun,
+  Moon
 } from 'lucide-react';
 import {
   HdbTransaction,
@@ -56,6 +58,31 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
   const [mapTheme, setMapTheme] = useState<'Default' | 'Night'>('Night');
   const [tileLayerRef, setTileLayerRef] = useState<any>(null);
+
+  // Day / Night Mode State (Day = OneMap Default, Night = OneMap Night)
+  const isDayMode = mapTheme === 'Default';
+
+  // Synchronize document body class for global day / night styling
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      if (isDayMode) {
+        document.body.classList.add('day-mode');
+        document.body.classList.remove('night-mode');
+      } else {
+        document.body.classList.add('night-mode');
+        document.body.classList.remove('day-mode');
+      }
+    }
+  }, [isDayMode]);
+
+  // Toggle between Day and Night mode
+  const toggleDayNightMode = (mode: 'day' | 'night') => {
+    const newTheme = mode === 'day' ? 'Default' : 'Night';
+    setMapTheme(newTheme);
+    if (tileLayerRef && mapInstanceRef.current) {
+      tileLayerRef.setUrl(`/api/tiles/${newTheme}/{z}/{x}/{y}.png`);
+    }
+  };
 
   // Search State
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -227,17 +254,22 @@ export default function App() {
   const createFlatMarkerIcon = useCallback((flat: HdbTransaction) => {
     const band = getPriceBand(flat.resale_price);
     const priceK = Math.round(flat.resale_price / 1000) + 'k';
+    const bg = isDayMode ? '#ffffff' : '#0f172a';
+    const textColor = isDayMode ? '#0f172a' : '#ffffff';
+    const boxShadow = isDayMode
+      ? `0 2px 8px rgba(0, 0, 0, 0.2), 0 0 6px ${band.markerHex}30`
+      : `0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px ${band.markerHex}40`;
 
     const html = `
       <div style="
         display: flex;
         align-items: center;
-        background: #0f172a;
-        color: #ffffff;
+        background: ${bg};
+        color: ${textColor};
         border: 2px solid ${band.markerHex};
         border-radius: 9999px;
         padding: 2px 7px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px ${band.markerHex}40;
+        box-shadow: ${boxShadow};
         font-family: 'Plus Jakarta Sans', sans-serif;
         font-size: 11px;
         font-weight: 700;
@@ -256,7 +288,7 @@ export default function App() {
       iconSize: [60, 24],
       iconAnchor: [30, 12]
     });
-  }, []);
+  }, [isDayMode]);
 
   // Initialize Map
   useEffect(() => {
@@ -313,13 +345,21 @@ export default function App() {
           const band = getPriceBand(avgPrice);
 
           const size = count < 10 ? 34 : count < 50 ? 42 : 48;
+          const isDay = typeof document !== 'undefined' && document.body.classList.contains('day-mode');
+          const bg = isDay ? '#ffffff' : '#0f172a';
+          const textColor = isDay ? '#0f172a' : '#ffffff';
+          const shadow = isDay
+            ? `0 2px 10px rgba(0,0,0,0.25), 0 0 10px ${band.markerHex}60`
+            : `0 0 14px ${band.markerHex}60`;
+
           return L.divIcon({
             html: `<div class="custom-cluster-marker" style="
               width: ${size}px;
               height: ${size}px;
-              background: #0f172a;
+              background: ${bg};
+              color: ${textColor};
               border: 3px solid ${band.markerHex};
-              box-shadow: 0 0 14px ${band.markerHex}60;
+              box-shadow: ${shadow};
             ">${count}</div>`,
             className: '',
             iconSize: [size, size]
@@ -479,15 +519,29 @@ export default function App() {
         (Math.pow(1 + monthlyRate, totalPayments) - 1)
     );
 
+    const titleColor = isDayMode ? '#0f172a' : '#ffffff';
+    const subColor = isDayMode ? '#64748b' : '#94a3b8';
+    const cardBg = isDayMode ? '#f8fafc' : 'rgba(30, 41, 59, 0.7)';
+    const cardBorder = isDayMode ? '#e2e8f0' : 'rgba(255, 255, 255, 0.08)';
+    const specBg = isDayMode ? '#f1f5f9' : 'rgba(15, 23, 42, 0.6)';
+    const specBorder = isDayMode ? '#e2e8f0' : 'rgba(255,255,255,0.05)';
+    const specValue = isDayMode ? '#0f172a' : '#f1f5f9';
+    const priceColor = isDayMode ? '#0284c7' : '#38bdf8';
+    const mrtBg = isDayMode ? 'rgba(2, 132, 199, 0.08)' : 'rgba(56, 189, 248, 0.08)';
+    const mrtBorder = isDayMode ? 'rgba(2, 132, 199, 0.2)' : 'rgba(56, 189, 248, 0.2)';
+    const mrtText = isDayMode ? '#0369a1' : '#38bdf8';
+    const mrtStationText = isDayMode ? '#0f172a' : '#e2e8f0';
+    const mortgageColor = isDayMode ? '#059669' : '#34d399';
+
     return `
       <div style="padding: 16px 18px; width: 285px; font-family: 'Plus Jakarta Sans', sans-serif;">
         <!-- Header & Price -->
         <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px;">
           <div>
-            <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.06em; color: #94a3b8;">
+            <div style="font-size: 11px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.06em; color: ${subColor};">
               ${flat.town} &bull; Blk ${flat.block}
             </div>
-            <div style="font-size: 15px; font-weight: 800; color: #ffffff; line-height: 1.25; margin-top: 2px;">
+            <div style="font-size: 15px; font-weight: 800; color: ${titleColor}; line-height: 1.25; margin-top: 2px;">
               ${flat.street_name}
             </div>
           </div>
@@ -506,59 +560,59 @@ export default function App() {
         </div>
 
         <!-- Big Price Highlight -->
-        <div style="margin-top: 12px; padding: 10px 12px; background: rgba(30, 41, 59, 0.7); border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.08);">
-          <div style="font-size: 11px; color: #94a3b8;">Resale Price</div>
-          <div style="font-size: 20px; font-weight: 800; color: #38bdf8; letter-spacing: -0.02em;">
+        <div style="margin-top: 12px; padding: 10px 12px; background: ${cardBg}; border-radius: 10px; border: 1px solid ${cardBorder};">
+          <div style="font-size: 11px; color: ${subColor};">Resale Price</div>
+          <div style="font-size: 20px; font-weight: 800; color: ${priceColor}; letter-spacing: -0.02em;">
             ${formatSGD(flat.resale_price)}
           </div>
-          <div style="font-size: 11px; color: #cbd5e1; margin-top: 2px; display: flex; justify-content: space-between;">
+          <div style="font-size: 11px; color: ${subColor}; margin-top: 2px; display: flex; justify-content: space-between;">
             <span>$${psf.toLocaleString()} psf</span>
-            <span style="color: #64748b;">&bull;</span>
+            <span>&bull;</span>
             <span>$${psm.toLocaleString()} /sqm</span>
           </div>
         </div>
 
         <!-- Key Flat Specs Grid -->
         <div style="margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 11px;">
-          <div style="background: rgba(15, 23, 42, 0.6); padding: 7px 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="color: #64748b; font-weight: 600;">Floor Area</div>
-            <div style="color: #f1f5f9; font-weight: 700; margin-top: 1px;">${flat.floor_area_sqm} sqm (${sqft} sqft)</div>
+          <div style="background: ${specBg}; padding: 7px 9px; border-radius: 8px; border: 1px solid ${specBorder};">
+            <div style="color: ${subColor}; font-weight: 600;">Floor Area</div>
+            <div style="color: ${specValue}; font-weight: 700; margin-top: 1px;">${flat.floor_area_sqm} sqm (${sqft} sqft)</div>
           </div>
-          <div style="background: rgba(15, 23, 42, 0.6); padding: 7px 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="color: #64748b; font-weight: 600;">Storey</div>
-            <div style="color: #f1f5f9; font-weight: 700; margin-top: 1px;">Lvl ${flat.storey_range}</div>
+          <div style="background: ${specBg}; padding: 7px 9px; border-radius: 8px; border: 1px solid ${specBorder};">
+            <div style="color: ${subColor}; font-weight: 600;">Storey</div>
+            <div style="color: ${specValue}; font-weight: 700; margin-top: 1px;">Lvl ${flat.storey_range}</div>
           </div>
-          <div style="background: rgba(15, 23, 42, 0.6); padding: 7px 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="color: #64748b; font-weight: 600;">Remaining Lease</div>
-            <div style="color: #f1f5f9; font-weight: 700; margin-top: 1px;">${flat.remaining_lease}</div>
+          <div style="background: ${specBg}; padding: 7px 9px; border-radius: 8px; border: 1px solid ${specBorder};">
+            <div style="color: ${subColor}; font-weight: 600;">Remaining Lease</div>
+            <div style="color: ${specValue}; font-weight: 700; margin-top: 1px;">${flat.remaining_lease}</div>
           </div>
-          <div style="background: rgba(15, 23, 42, 0.6); padding: 7px 9px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.05);">
-            <div style="color: #64748b; font-weight: 600;">Transaction</div>
-            <div style="color: #f1f5f9; font-weight: 700; margin-top: 1px;">${flat.month}</div>
+          <div style="background: ${specBg}; padding: 7px 9px; border-radius: 8px; border: 1px solid ${specBorder};">
+            <div style="color: ${subColor}; font-weight: 600;">Transaction</div>
+            <div style="color: ${specValue}; font-weight: 700; margin-top: 1px;">${flat.month}</div>
           </div>
         </div>
 
         <!-- Nearest MRT Station -->
-        <div style="margin-top: 10px; padding: 8px 10px; background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
+        <div style="margin-top: 10px; padding: 8px 10px; background: ${mrtBg}; border: 1px solid ${mrtBorder}; border-radius: 8px; display: flex; align-items: center; justify-content: space-between; font-size: 11px;">
           <div style="display: flex; align-items: center; gap: 6px;">
-            <span style="width: 8px; height: 8px; border-radius: 50%; background: #38bdf8; display: inline-block;"></span>
-            <span style="color: #e2e8f0; font-weight: 600;">${nearestMrt.station.name} MRT</span>
+            <span style="width: 8px; height: 8px; border-radius: 50%; background: ${mrtText}; display: inline-block;"></span>
+            <span style="color: ${mrtStationText}; font-weight: 600;">${nearestMrt.station.name} MRT</span>
           </div>
-          <div style="color: #38bdf8; font-weight: 700;">
+          <div style="color: ${mrtText}; font-weight: 700;">
             ${nearestMrt.distanceMeters}m (${walkMins}m walk)
           </div>
         </div>
 
         <!-- Mortgage Fast Estimate -->
-        <div style="margin-top: 8px; font-size: 11px; color: #94a3b8; display: flex; justify-content: space-between; align-items: center; padding: 4px 2px;">
+        <div style="margin-top: 8px; font-size: 11px; color: ${subColor}; display: flex; justify-content: space-between; align-items: center; padding: 4px 2px;">
           <span>Est. Monthly Mortgage:</span>
-          <span style="color: #34d399; font-weight: 700;">~${formatSGD(estMonthly)}/mo</span>
+          <span style="color: ${mortgageColor}; font-weight: 700;">~${formatSGD(estMonthly)}/mo</span>
         </div>
       </div>
     `;
-  }, []);
+  }, [isDayMode]);
 
-  // Update Markers on filteredTransactions change
+  // Update Markers on filteredTransactions change or day/night mode change
   useEffect(() => {
     if (!clusterGroupRef.current || typeof L === 'undefined') return;
 
@@ -582,7 +636,7 @@ export default function App() {
 
       clusterGroupRef.current.addLayer(marker);
     });
-  }, [filteredTransactions, createFlatMarkerIcon, buildPopupHtml]);
+  }, [filteredTransactions, createFlatMarkerIcon, buildPopupHtml, isDayMode]);
 
   // Geocoding and Search Handler
   const handleAddressSearch = async (e: React.FormEvent) => {
@@ -822,7 +876,9 @@ export default function App() {
   };
 
   return (
-    <div className="relative w-screen h-screen flex overflow-hidden bg-slate-950 font-sans">
+    <div className={`relative w-screen h-screen flex overflow-hidden font-sans transition-colors duration-300 ${
+      isDayMode ? 'bg-slate-100 text-slate-900' : 'bg-slate-950 text-slate-100'
+    }`}>
       {/* MAP CANVAS */}
       <div ref={mapContainerRef} className="w-full h-full z-0" />
 
@@ -832,33 +888,45 @@ export default function App() {
           {/* Toggle Sidebar Button */}
           <button
             onClick={() => setSidebarOpen(prev => !prev)}
-            className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/60 shadow-xl backdrop-blur-md transition-all active:scale-95 flex items-center gap-2"
+            className={`p-2.5 rounded-xl border shadow-xl backdrop-blur-md transition-all active:scale-95 flex items-center gap-2 ${
+              isDayMode
+                ? 'bg-white/95 hover:bg-slate-50 text-slate-800 border-slate-200'
+                : 'bg-slate-900/90 hover:bg-slate-800 text-slate-200 border-slate-700/60'
+            }`}
             title="Toggle Control Panel"
           >
-            <SlidersHorizontal className="w-5 h-5 text-sky-400" />
+            <SlidersHorizontal className={`w-5 h-5 ${isDayMode ? 'text-sky-600' : 'text-sky-400'}`} />
             <span className="text-xs font-bold hidden sm:inline">
               {sidebarOpen ? 'Hide Panel' : 'Filters & Budget'}
             </span>
           </button>
 
           {/* Quick App Brand Badge */}
-          <div className="bg-slate-900/90 border border-slate-700/60 px-3.5 py-2 rounded-xl backdrop-blur-md shadow-xl flex items-center gap-2.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]" />
+          <div className={`border px-3.5 py-2 rounded-xl backdrop-blur-md shadow-xl flex items-center gap-2.5 ${
+            isDayMode
+              ? 'bg-white/95 border-slate-200 text-slate-900'
+              : 'bg-slate-900/90 border-slate-700/60 text-slate-100'
+          }`}>
+            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
             <div className="text-left">
-              <h1 className="text-xs font-extrabold text-slate-100 tracking-tight flex items-center gap-1.5">
+              <h1 className="text-xs font-extrabold tracking-tight flex items-center gap-1.5">
                 <span>SG HDB Resale & Budget Map</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300 font-semibold border border-sky-500/30">
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-semibold border ${
+                  isDayMode
+                    ? 'bg-sky-50 text-sky-700 border-sky-200'
+                    : 'bg-sky-500/20 text-sky-300 border-sky-500/30'
+                }`}>
                   OneMap
                 </span>
               </h1>
-              <p className="text-[10px] text-slate-400 hidden md:block">
+              <p className={`text-[10px] hidden md:block ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>
                 Interactive Affordability & Spatial Pricing Explorer
               </p>
             </div>
           </div>
         </div>
 
-        {/* Top Right Controls: Search, Theme Toggle, Health */}
+        {/* Top Right Controls: Search, Day/Night Toggle, Health */}
         <div className="flex items-center gap-2 pointer-events-auto">
           {/* Quick Search Form */}
           <form onSubmit={handleAddressSearch} className="relative hidden sm:block">
@@ -867,78 +935,108 @@ export default function App() {
               placeholder="Search postal code, street, MRT..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="w-64 md:w-80 bg-slate-900/90 border border-slate-700/60 text-slate-100 placeholder-slate-400 text-xs rounded-xl pl-9 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500 backdrop-blur-md shadow-xl transition-all"
+              className={`w-64 md:w-80 border text-xs rounded-xl pl-9 pr-8 py-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500 backdrop-blur-md shadow-xl transition-all ${
+                isDayMode
+                  ? 'bg-white/95 border-slate-300 text-slate-900 placeholder-slate-400'
+                  : 'bg-slate-900/90 border-slate-700/60 text-slate-100 placeholder-slate-400'
+              }`}
             />
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+            <Search className={`w-4 h-4 absolute left-3 top-3 ${isDayMode ? 'text-slate-400' : 'text-slate-400'}`} />
             {searchLoading ? (
               <RefreshCw className="w-3.5 h-3.5 text-sky-400 absolute right-3 top-3 animate-spin" />
             ) : searchQuery ? (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-200"
+                className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             ) : null}
           </form>
 
-          {/* Map Base Tile Switcher */}
-          <div className="bg-slate-900/90 border border-slate-700/60 p-1 rounded-xl backdrop-blur-md shadow-xl flex items-center text-xs">
+          {/* Map Base Tile Day / Night Mode Switcher */}
+          <div className={`p-1 rounded-xl backdrop-blur-md flex items-center text-xs transition-all border ${
+            isDayMode
+              ? 'bg-white/95 border-slate-200 shadow-md'
+              : 'bg-slate-900/90 border-slate-700/60 shadow-xl'
+          }`}>
             <button
-              onClick={() => toggleMapTheme('Night')}
-              className={`px-2.5 py-1.5 rounded-lg font-bold transition-all ${
-                mapTheme === 'Night'
-                  ? 'bg-sky-600 text-white shadow-sm'
+              onClick={() => toggleDayNightMode('day')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                isDayMode
+                  ? 'bg-amber-500 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
+              title="Switch to Day Mode (OneMap Default)"
             >
-              Night
+              <Sun className={`w-3.5 h-3.5 ${isDayMode ? 'text-white' : 'text-amber-400'}`} />
+              <span>Day</span>
             </button>
             <button
-              onClick={() => toggleMapTheme('Default')}
-              className={`px-2.5 py-1.5 rounded-lg font-bold transition-all ${
-                mapTheme === 'Default'
+              onClick={() => toggleDayNightMode('night')}
+              className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
+                !isDayMode
                   ? 'bg-sky-600 text-white shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
+              title="Switch to Night Mode (OneMap Night)"
             >
-              Default
+              <Moon className={`w-3.5 h-3.5 ${!isDayMode ? 'text-sky-200' : 'text-slate-400'}`} />
+              <span>Night</span>
             </button>
           </div>
 
           {/* System API Health Check Button */}
           <button
             onClick={checkServiceHealth}
-            className="p-2.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-slate-100 border border-slate-700/60 backdrop-blur-md shadow-xl transition-all"
+            className={`p-2.5 rounded-xl border backdrop-blur-md shadow-xl transition-all ${
+              isDayMode
+                ? 'bg-white/95 hover:bg-slate-50 text-slate-700 border-slate-200'
+                : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 hover:text-slate-100 border-slate-700/60'
+            }`}
             title="Service & API Health Diagnostics"
           >
-            <Activity className="w-4 h-4 text-emerald-400" />
+            <Activity className="w-4 h-4 text-emerald-500" />
           </button>
         </div>
       </header>
 
       {/* FLOATING NOTIFICATION BANNER */}
       {fetchNotification && (
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 z-30 bg-slate-900/95 border border-sky-500/50 text-slate-100 px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs font-semibold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-3">
-          <Sparkles className="w-4 h-4 text-sky-400 shrink-0" />
+        <div className={`absolute top-20 left-1/2 -translate-x-1/2 z-30 border px-4 py-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs font-semibold flex items-center gap-2.5 animate-in fade-in slide-in-from-top-3 ${
+          isDayMode
+            ? 'bg-white/95 border-sky-400 text-slate-800'
+            : 'bg-slate-900/95 border-sky-500/50 text-slate-100'
+        }`}>
+          <Sparkles className="w-4 h-4 text-sky-500 shrink-0" />
           <span>{fetchNotification}</span>
         </div>
       )}
 
       {/* LEFT CONTROL PANEL (DRAWER) */}
       <aside
-        className={`absolute top-20 bottom-4 left-4 z-20 w-96 max-w-[calc(100vw-2rem)] flex flex-col bg-slate-900/95 border border-slate-800/80 rounded-2xl shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-300 ${
+        className={`absolute top-20 bottom-4 left-4 z-20 w-96 max-w-[calc(100vw-2rem)] flex flex-col border rounded-2xl shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-300 ${
+          isDayMode
+            ? 'bg-white/95 border-slate-200/90 text-slate-800'
+            : 'bg-slate-900/95 border-slate-800/80 text-slate-100'
+        } ${
           sidebarOpen ? 'translate-x-0 opacity-100' : '-translate-x-[110%] opacity-0 pointer-events-none'
         }`}
       >
         {/* Navigation Tabs */}
-        <div className="p-3 border-b border-slate-800 bg-slate-950/40 grid grid-cols-3 gap-1">
+        <div className={`p-3 border-b grid grid-cols-3 gap-1 ${
+          isDayMode ? 'border-slate-200 bg-slate-50/80' : 'border-slate-800 bg-slate-950/40'
+        }`}>
           <button
             onClick={() => setActiveTab('filter')}
             className={`py-2 px-1 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'filter'
-                ? 'bg-sky-600/20 text-sky-400 border border-sky-500/30'
+                ? isDayMode
+                  ? 'bg-sky-100 text-sky-800 border border-sky-300 shadow-xs'
+                  : 'bg-sky-600/20 text-sky-400 border border-sky-500/30'
+                : isDayMode
+                ? 'text-slate-600 hover:text-slate-900'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -949,7 +1047,11 @@ export default function App() {
             onClick={() => setActiveTab('budget')}
             className={`py-2 px-1 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'budget'
-                ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                ? isDayMode
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs'
+                  : 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30'
+                : isDayMode
+                ? 'text-slate-600 hover:text-slate-900'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -960,7 +1062,11 @@ export default function App() {
             onClick={() => setActiveTab('insights')}
             className={`py-2 px-1 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
               activeTab === 'insights'
-                ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
+                ? isDayMode
+                  ? 'bg-purple-100 text-purple-800 border border-purple-300 shadow-xs'
+                  : 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
+                : isDayMode
+                ? 'text-slate-600 hover:text-slate-900'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -976,7 +1082,9 @@ export default function App() {
             <div className="space-y-5">
               {/* Quick Preset Buttons */}
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                <label className={`text-[11px] font-bold uppercase tracking-wider block mb-2 ${
+                  isDayMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   Quick Presets
                 </label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -985,7 +1093,11 @@ export default function App() {
                       setMinPrice(200000);
                       setMaxPrice(450000);
                     }}
-                    className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-emerald-400 border border-emerald-500/30 font-semibold text-left"
+                    className={`p-2 rounded-lg font-semibold text-left transition-all border ${
+                      isDayMode
+                        ? 'bg-emerald-50 hover:bg-emerald-100/80 text-emerald-800 border-emerald-200'
+                        : 'bg-slate-800/80 hover:bg-slate-700/80 text-emerald-400 border-emerald-500/30'
+                    }`}
                   >
                     Entry Budget (&lt; $450k)
                   </button>
@@ -995,7 +1107,11 @@ export default function App() {
                       setMinPrice(450000);
                       setMaxPrice(700000);
                     }}
-                    className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-amber-400 border border-amber-500/30 font-semibold text-left"
+                    className={`p-2 rounded-lg font-semibold text-left transition-all border ${
+                      isDayMode
+                        ? 'bg-amber-50 hover:bg-amber-100/80 text-amber-800 border-amber-200'
+                        : 'bg-slate-800/80 hover:bg-slate-700/80 text-amber-400 border-amber-500/30'
+                    }`}
                   >
                     4-Room Family ($450-700k)
                   </button>
@@ -1004,7 +1120,11 @@ export default function App() {
                       setMinPrice(950000);
                       setMaxPrice(1500000);
                     }}
-                    className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-rose-400 border border-rose-500/30 font-semibold text-left"
+                    className={`p-2 rounded-lg font-semibold text-left transition-all border ${
+                      isDayMode
+                        ? 'bg-rose-50 hover:bg-rose-100/80 text-rose-800 border-rose-200'
+                        : 'bg-slate-800/80 hover:bg-slate-700/80 text-rose-400 border-rose-500/30'
+                    }`}
                   >
                     Million Dollar Club ($1M+)
                   </button>
@@ -1012,7 +1132,11 @@ export default function App() {
                     onClick={() => {
                       setMinLeaseYears(80);
                     }}
-                    className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 text-sky-400 border border-sky-500/30 font-semibold text-left"
+                    className={`p-2 rounded-lg font-semibold text-left transition-all border ${
+                      isDayMode
+                        ? 'bg-sky-50 hover:bg-sky-100/80 text-sky-800 border-sky-200'
+                        : 'bg-slate-800/80 hover:bg-slate-700/80 text-sky-400 border-sky-500/30'
+                    }`}
                   >
                     Long Lease (&gt; 80 Yrs)
                   </button>
@@ -1020,12 +1144,16 @@ export default function App() {
               </div>
 
               {/* Price Range Controls */}
-              <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800">
+              <div className={`p-3.5 rounded-xl border ${
+                isDayMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-800'
+              }`}>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <label className={`text-[11px] font-bold uppercase tracking-wider ${
+                    isDayMode ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
                     Resale Price Range
                   </label>
-                  <span className="text-xs font-mono font-bold text-sky-400">
+                  <span className="text-xs font-mono font-bold text-sky-500">
                     {formatSGD(minPrice)} - {formatSGD(maxPrice)}
                   </span>
                 </div>
@@ -1043,7 +1171,9 @@ export default function App() {
                       step={25000}
                       value={minPrice}
                       onChange={e => setMinPrice(Math.min(Number(e.target.value), maxPrice - 25000))}
-                      className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      className={`w-full accent-sky-500 h-1.5 rounded-lg cursor-pointer ${
+                        isDayMode ? 'bg-slate-200' : 'bg-slate-800'
+                      }`}
                     />
                   </div>
 
@@ -1059,7 +1189,9 @@ export default function App() {
                       step={25000}
                       value={maxPrice}
                       onChange={e => setMaxPrice(Math.max(Number(e.target.value), minPrice + 25000))}
-                      className="w-full accent-sky-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      className={`w-full accent-sky-500 h-1.5 rounded-lg cursor-pointer ${
+                        isDayMode ? 'bg-slate-200' : 'bg-slate-800'
+                      }`}
                     />
                   </div>
                 </div>
@@ -1067,7 +1199,9 @@ export default function App() {
 
               {/* Flat Type Filter */}
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                <label className={`text-[11px] font-bold uppercase tracking-wider block mb-2 ${
+                  isDayMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   Flat Types
                 </label>
                 <div className="flex flex-wrap gap-1.5">
@@ -1086,6 +1220,8 @@ export default function App() {
                         className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${
                           isSelected
                             ? 'bg-sky-600 text-white border-sky-400 shadow-md'
+                            : isDayMode
+                            ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/80'
                             : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-slate-200'
                         }`}
                       >
@@ -1096,7 +1232,9 @@ export default function App() {
                   {selectedFlatTypes.length > 0 && (
                     <button
                       onClick={() => setSelectedFlatTypes([])}
-                      className="px-2 py-1 text-[11px] text-slate-400 hover:text-slate-200 underline"
+                      className={`px-2 py-1 text-[11px] underline ${
+                        isDayMode ? 'text-slate-500 hover:text-slate-800' : 'text-slate-400 hover:text-slate-200'
+                      }`}
                     >
                       Clear
                     </button>
@@ -1107,13 +1245,15 @@ export default function App() {
               {/* Towns Filter */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <label className={`text-[11px] font-bold uppercase tracking-wider ${
+                    isDayMode ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
                     Towns ({selectedTowns.length === 0 ? 'All Singapore' : `${selectedTowns.length} selected`})
                   </label>
                   {selectedTowns.length > 0 && (
                     <button
                       onClick={() => setSelectedTowns([])}
-                      className="text-[10px] text-sky-400 hover:underline"
+                      className="text-[10px] text-sky-500 hover:underline"
                     >
                       Reset All
                     </button>
@@ -1134,12 +1274,16 @@ export default function App() {
                         }}
                         className={`text-left px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all border flex items-center justify-between ${
                           isSelected
-                            ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-bold'
+                            ? isDayMode
+                              ? 'bg-sky-100 text-sky-900 border-sky-300 font-bold'
+                              : 'bg-sky-500/20 text-sky-300 border-sky-500/40 font-bold'
+                            : isDayMode
+                            ? 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
                             : 'bg-slate-900/60 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-slate-200'
                         }`}
                       >
                         <span className="truncate">{town.name}</span>
-                        {isSelected && <Check className="w-3 h-3 text-sky-400 shrink-0 ml-1" />}
+                        {isSelected && <Check className="w-3 h-3 text-sky-500 shrink-0 ml-1" />}
                       </button>
                     );
                   })}
@@ -1148,7 +1292,9 @@ export default function App() {
 
               {/* Remaining Lease Filter */}
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-2">
+                <label className={`text-[11px] font-bold uppercase tracking-wider block mb-2 ${
+                  isDayMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   Remaining Lease Minimum
                 </label>
                 <div className="grid grid-cols-4 gap-1.5 text-xs">
@@ -1159,6 +1305,8 @@ export default function App() {
                       className={`py-1.5 rounded-lg font-bold border transition-all ${
                         minLeaseYears === years
                           ? 'bg-sky-600 text-white border-sky-400'
+                          : isDayMode
+                          ? 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/80'
                           : 'bg-slate-800/60 text-slate-400 border-slate-700/60 hover:text-slate-200'
                       }`}
                     >
@@ -1169,13 +1317,19 @@ export default function App() {
               </div>
 
               {/* Spatial Amenities & Overlays */}
-              <div className="bg-slate-950/40 p-3.5 rounded-xl border border-slate-800 space-y-2.5">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+              <div className={`p-3.5 rounded-xl border space-y-2.5 ${
+                isDayMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-800'
+              }`}>
+                <label className={`text-[11px] font-bold uppercase tracking-wider block ${
+                  isDayMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   Spatial Layers & Amenities
                 </label>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-slate-300 flex items-center gap-1.5">
-                    <Train className="w-3.5 h-3.5 text-sky-400" />
+                  <span className={`flex items-center gap-1.5 ${
+                    isDayMode ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
+                    <Train className="w-3.5 h-3.5 text-sky-500" />
                     Show MRT Stations
                   </span>
                   <input
@@ -1186,8 +1340,10 @@ export default function App() {
                   />
                 </div>
                 <div className="flex items-center justify-between text-xs pt-1">
-                  <span className="text-slate-300 flex items-center gap-1.5">
-                    <LocateFixed className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className={`flex items-center gap-1.5 ${
+                    isDayMode ? 'text-slate-700' : 'text-slate-300'
+                  }`}>
+                    <LocateFixed className="w-3.5 h-3.5 text-emerald-500" />
                     Walking Radius (500m / 1km)
                   </span>
                   <input
@@ -1210,7 +1366,11 @@ export default function App() {
                     setMinLeaseYears(0);
                     setActivePriceBands(['budget', 'mid', 'prime', 'million']);
                   }}
-                  className="flex-1 py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-all border border-slate-700"
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all border ${
+                    isDayMode
+                      ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                  }`}
                 >
                   Reset All Filters
                 </button>
@@ -1230,56 +1390,78 @@ export default function App() {
           {/* TAB 2: BUDGET AFFORDABILITY CALCULATOR */}
           {activeTab === 'budget' && (
             <div className="space-y-4">
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl">
-                <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
+              <div className={`p-3 rounded-xl border ${
+                isDayMode
+                  ? 'bg-emerald-50/70 border-emerald-200'
+                  : 'bg-emerald-500/10 border-emerald-500/30'
+              }`}>
+                <div className={`flex items-center gap-2 font-bold text-xs ${
+                  isDayMode ? 'text-emerald-800' : 'text-emerald-400'
+                }`}>
                   <Calculator className="w-4 h-4" />
                   <span>HDB Mortgage & Affordability Model</span>
                 </div>
-                <p className="text-[11px] text-slate-300 mt-1 leading-relaxed">
+                <p className={`text-[11px] mt-1 leading-relaxed ${
+                  isDayMode ? 'text-slate-600' : 'text-slate-300'
+                }`}>
                   Compliant with MAS & HDB regulations: 30% Mortgage Servicing Ratio (MSR) and current LTV limits.
                 </p>
               </div>
 
               {/* Household Income Input */}
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                <label className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
+                  isDayMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   Gross Household Monthly Income
                 </label>
                 <div className="relative">
-                  <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <DollarSign className={`w-4 h-4 absolute left-3 top-2.5 ${isDayMode ? 'text-slate-400' : 'text-slate-400'}`} />
                   <input
                     type="number"
                     step={500}
                     value={monthlyIncome}
                     onChange={e => setMonthlyIncome(Math.max(0, Number(e.target.value)))}
-                    className="w-full bg-slate-950/60 border border-slate-700 text-slate-100 pl-9 pr-3 py-2 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className={`w-full pl-9 pr-3 py-2 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none border ${
+                      isDayMode
+                        ? 'bg-white border-slate-300 text-slate-900'
+                        : 'bg-slate-950/60 border-slate-700 text-slate-100'
+                    }`}
                   />
                 </div>
-                <div className="text-[10px] text-slate-500 mt-1">
+                <div className={`text-[10px] mt-1 ${isDayMode ? 'text-slate-500' : 'text-slate-500'}`}>
                   MSR allows max ~{formatSGD(budgetCalculations.maxMonthlyInstallment)}/month for mortgage payment.
                 </div>
               </div>
 
               {/* Cash & CPF Downpayment */}
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                <label className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
+                  isDayMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   Cash + CPF OA Available for Downpayment
                 </label>
                 <div className="relative">
-                  <DollarSign className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+                  <DollarSign className={`w-4 h-4 absolute left-3 top-2.5 ${isDayMode ? 'text-slate-400' : 'text-slate-400'}`} />
                   <input
                     type="number"
                     step={10000}
                     value={cashDownpayment}
                     onChange={e => setCashDownpayment(Math.max(0, Number(e.target.value)))}
-                    className="w-full bg-slate-950/60 border border-slate-700 text-slate-100 pl-9 pr-3 py-2 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    className={`w-full pl-9 pr-3 py-2 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none border ${
+                      isDayMode
+                        ? 'bg-white border-slate-300 text-slate-900'
+                        : 'bg-slate-950/60 border-slate-700 text-slate-100'
+                    }`}
                   />
                 </div>
               </div>
 
               {/* Loan Type Selection */}
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                <label className={`text-[11px] font-bold uppercase tracking-wider block mb-1 ${
+                  isDayMode ? 'text-slate-500' : 'text-slate-400'
+                }`}>
                   Financing Loan Type
                 </label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
@@ -1290,12 +1472,18 @@ export default function App() {
                     }}
                     className={`p-2.5 rounded-xl border text-left font-bold transition-all ${
                       loanType === 'hdb'
-                        ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
+                        ? isDayMode
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-400 shadow-xs'
+                          : 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
+                        : isDayMode
+                        ? 'bg-slate-50 text-slate-600 border-slate-200'
                         : 'bg-slate-900/60 text-slate-400 border-slate-800'
                     }`}
                   >
                     <div>HDB Concessionary</div>
-                    <div className="text-[10px] text-slate-400 font-normal">2.6% p.a. • 80% LTV</div>
+                    <div className={`text-[10px] font-normal ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                      2.6% p.a. • 80% LTV
+                    </div>
                   </button>
                   <button
                     onClick={() => {
@@ -1304,21 +1492,29 @@ export default function App() {
                     }}
                     className={`p-2.5 rounded-xl border text-left font-bold transition-all ${
                       loanType === 'bank'
-                        ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
+                        ? isDayMode
+                          ? 'bg-emerald-100 text-emerald-900 border-emerald-400 shadow-xs'
+                          : 'bg-emerald-600/20 text-emerald-300 border-emerald-500/50 shadow-md'
+                        : isDayMode
+                        ? 'bg-slate-50 text-slate-600 border-slate-200'
                         : 'bg-slate-900/60 text-slate-400 border-slate-800'
                     }`}
                   >
                     <div>Bank Commercial</div>
-                    <div className="text-[10px] text-slate-400 font-normal">3.2% p.a. • 75% LTV</div>
+                    <div className={`text-[10px] font-normal ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                      3.2% p.a. • 75% LTV
+                    </div>
                   </button>
                 </div>
               </div>
 
               {/* Loan Tenure Slider */}
-              <div className="bg-slate-950/40 p-3 rounded-xl border border-slate-800">
+              <div className={`p-3 rounded-xl border ${
+                isDayMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-800'
+              }`}>
                 <div className="flex justify-between text-xs mb-1.5 font-bold">
-                  <span className="text-slate-400">Loan Tenure</span>
-                  <span className="text-emerald-400 font-mono">{loanTenureYears} Years</span>
+                  <span className={isDayMode ? 'text-slate-600' : 'text-slate-400'}>Loan Tenure</span>
+                  <span className="text-emerald-500 font-mono">{loanTenureYears} Years</span>
                 </div>
                 <input
                   type="range"
@@ -1327,37 +1523,51 @@ export default function App() {
                   step={1}
                   value={loanTenureYears}
                   onChange={e => setLoanTenureYears(Number(e.target.value))}
-                  className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  className={`w-full accent-emerald-500 h-1.5 rounded-lg cursor-pointer ${
+                    isDayMode ? 'bg-slate-200' : 'bg-slate-800'
+                  }`}
                 />
               </div>
 
               {/* Calculated Budget Summary Box */}
-              <div className="p-4 rounded-xl bg-gradient-to-br from-emerald-950/40 to-slate-900 border border-emerald-500/40 space-y-3">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+              <div className={`p-4 rounded-xl border space-y-3 ${
+                isDayMode
+                  ? 'bg-gradient-to-br from-emerald-50 to-white border-emerald-300 shadow-sm'
+                  : 'bg-gradient-to-br from-emerald-950/40 to-slate-900 border-emerald-500/40'
+              }`}>
+                <div className={`text-[11px] font-bold uppercase tracking-wider ${
+                  isDayMode ? 'text-emerald-700' : 'text-emerald-400'
+                }`}>
                   Estimated Maximum Purchase Budget
                 </div>
-                <div className="text-2xl font-black text-white tracking-tight">
+                <div className={`text-2xl font-black tracking-tight ${
+                  isDayMode ? 'text-slate-900' : 'text-white'
+                }`}>
                   {formatSGD(budgetCalculations.calculatedMaxPrice)}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                <div className="grid grid-cols-2 gap-2 pt-2 border-t border-emerald-500/20 text-[11px]">
                   <div>
-                    <span className="text-slate-400 block">Eligible Loan:</span>
-                    <span className="text-slate-200 font-bold">{formatSGD(budgetCalculations.maxLoanAmount)}</span>
+                    <span className={`block ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>Eligible Loan:</span>
+                    <span className={`font-bold ${isDayMode ? 'text-slate-800' : 'text-slate-200'}`}>
+                      {formatSGD(budgetCalculations.maxLoanAmount)}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">Downpayment:</span>
-                    <span className="text-slate-200 font-bold">{formatSGD(cashDownpayment)}</span>
+                    <span className={`block ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>Downpayment:</span>
+                    <span className={`font-bold ${isDayMode ? 'text-slate-800' : 'text-slate-200'}`}>
+                      {formatSGD(cashDownpayment)}
+                    </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">Max Installment:</span>
-                    <span className="text-emerald-400 font-bold">
+                    <span className={`block ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>Max Installment:</span>
+                    <span className="text-emerald-600 font-bold">
                       {formatSGD(budgetCalculations.maxMonthlyInstallment)}/mo
                     </span>
                   </div>
                   <div>
-                    <span className="text-slate-400 block">MSR Limit:</span>
-                    <span className="text-slate-200 font-bold">30% of Income</span>
+                    <span className={`block ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>MSR Limit:</span>
+                    <span className={`font-bold ${isDayMode ? 'text-slate-800' : 'text-slate-200'}`}>30% of Income</span>
                   </div>
                 </div>
 
@@ -1376,15 +1586,20 @@ export default function App() {
           {/* TAB 3: AFFORDABLE TOWNS & INSIGHTS */}
           {activeTab === 'insights' && (
             <div className="space-y-4">
-              <div className="text-xs text-slate-300">
+              <div className={`text-xs ${isDayMode ? 'text-slate-600' : 'text-slate-300'}`}>
                 Towns ranked by proportion of transactions meeting your current budget of{' '}
-                <strong className="text-emerald-400">{formatSGD(budgetCalculations.calculatedMaxPrice)}</strong>. Click
-                any town to zoom:
+                <strong className={isDayMode ? 'text-emerald-700' : 'text-emerald-400'}>
+                  {formatSGD(budgetCalculations.calculatedMaxPrice)}
+                </strong>. Click any town to zoom:
               </div>
 
               <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1">
                 {affordableTowns.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-slate-900/50 border border-slate-800 text-center text-xs text-slate-400">
+                  <div className={`p-4 rounded-xl text-center text-xs border ${
+                    isDayMode
+                      ? 'bg-slate-50 border-slate-200 text-slate-500'
+                      : 'bg-slate-900/50 border-slate-800 text-slate-400'
+                  }`}>
                     No towns have flats under this budget limit. Consider increasing downpayment or income.
                   </div>
                 ) : (
@@ -1392,16 +1607,26 @@ export default function App() {
                     <div
                       key={item.town}
                       onClick={() => zoomToTown(item.town)}
-                      className="p-3 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition-all flex items-center justify-between group"
+                      className={`p-3 rounded-xl cursor-pointer transition-all flex items-center justify-between group border ${
+                        isDayMode
+                          ? 'bg-slate-50 hover:bg-sky-50/60 border-slate-200 hover:border-sky-300'
+                          : 'bg-slate-950/60 hover:bg-slate-800/80 border-slate-800 hover:border-sky-500/50'
+                      }`}
                     >
                       <div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-mono text-slate-500">#{idx + 1}</span>
-                          <span className="text-xs font-bold text-slate-100 group-hover:text-sky-300 transition-colors">
+                          <span className={`text-[10px] font-mono ${isDayMode ? 'text-slate-400' : 'text-slate-500'}`}>#{idx + 1}</span>
+                          <span className={`text-xs font-bold transition-colors ${
+                            isDayMode
+                              ? 'text-slate-800 group-hover:text-sky-700'
+                              : 'text-slate-100 group-hover:text-sky-300'
+                          }`}>
                             {item.town}
                           </span>
                         </div>
-                        <div className="text-[10px] text-slate-400 mt-1 flex gap-2">
+                        <div className={`text-[10px] mt-1 flex gap-2 ${
+                          isDayMode ? 'text-slate-500' : 'text-slate-400'
+                        }`}>
                           <span>Median: {formatSGD(item.medianPrice)}</span>
                           <span>&bull;</span>
                           <span>{item.affordable} affordable units</span>
@@ -1409,8 +1634,10 @@ export default function App() {
                       </div>
 
                       <div className="text-right">
-                        <div className="text-xs font-black text-emerald-400">{item.percent}%</div>
-                        <div className="text-[9px] text-slate-500">within budget</div>
+                        <div className={`text-xs font-black ${
+                          isDayMode ? 'text-emerald-600' : 'text-emerald-400'
+                        }`}>{item.percent}%</div>
+                        <div className={`text-[9px] ${isDayMode ? 'text-slate-400' : 'text-slate-500'}`}>within budget</div>
                       </div>
                     </div>
                   ))
@@ -1421,17 +1648,23 @@ export default function App() {
         </div>
 
         {/* Bottom Drawer Summary Footer */}
-        <div className="p-3 border-t border-slate-800 bg-slate-950/80 flex items-center justify-between text-xs">
+        <div className={`p-3 border-t flex items-center justify-between text-xs ${
+          isDayMode
+            ? 'border-slate-200 bg-slate-50 text-slate-800'
+            : 'border-slate-800 bg-slate-950/80 text-slate-100'
+        }`}>
           <div>
-            <div className="text-[10px] text-slate-400">Matching Flats</div>
-            <div className="text-sm font-black text-sky-400">
+            <div className={`text-[10px] ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>Matching Flats</div>
+            <div className="text-sm font-black text-sky-500">
               {summaryStats.count}{' '}
-              <span className="text-[10px] font-normal text-slate-500">of {transactions.length}</span>
+              <span className={`text-[10px] font-normal ${isDayMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                of {transactions.length}
+              </span>
             </div>
           </div>
           <div className="text-right">
-            <div className="text-[10px] text-slate-400">Median Resale</div>
-            <div className="text-sm font-black text-slate-100">
+            <div className={`text-[10px] ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>Median Resale</div>
+            <div className={`text-sm font-black ${isDayMode ? 'text-slate-800' : 'text-slate-100'}`}>
               {summaryStats.count > 0 ? formatSGD(summaryStats.medianPrice) : 'N/A'}
             </div>
           </div>
@@ -1439,10 +1672,16 @@ export default function App() {
       </aside>
 
       {/* BOTTOM RIGHT PRICE BAND DYNAMIC LEGEND */}
-      <div className="absolute bottom-5 right-4 z-20 pointer-events-auto bg-slate-900/95 border border-slate-800/90 rounded-2xl p-3.5 shadow-2xl backdrop-blur-xl max-w-xs text-xs space-y-2 hidden sm:block">
-        <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-1.5">
+      <div className={`absolute bottom-5 right-4 z-20 pointer-events-auto rounded-2xl p-3.5 shadow-2xl backdrop-blur-xl max-w-xs text-xs space-y-2 hidden sm:block border ${
+        isDayMode
+          ? 'bg-white/95 border-slate-200 text-slate-800'
+          : 'bg-slate-900/95 border-slate-800/90 text-slate-100'
+      }`}>
+        <div className={`flex items-center justify-between text-[11px] font-bold uppercase tracking-wider border-b pb-1.5 ${
+          isDayMode ? 'text-slate-500 border-slate-200' : 'text-slate-400 border-slate-800'
+        }`}>
           <span>Resale Price Bands</span>
-          <span className="text-[10px] text-slate-500">Click to filter</span>
+          <span className={`text-[10px] ${isDayMode ? 'text-slate-400' : 'text-slate-500'}`}>Click to filter</span>
         </div>
 
         <div className="space-y-1.5">
@@ -1465,17 +1704,27 @@ export default function App() {
                   }
                 }}
                 className={`w-full flex items-center justify-between p-1.5 rounded-lg transition-all text-left ${
-                  isActive ? 'bg-slate-800/60 hover:bg-slate-800' : 'opacity-40 hover:opacity-75'
+                  isActive
+                    ? isDayMode
+                      ? 'bg-slate-100 hover:bg-slate-200/80 text-slate-800'
+                      : 'bg-slate-800/60 hover:bg-slate-800 text-slate-200'
+                    : 'opacity-40 hover:opacity-75'
                 }`}
               >
                 <div className="flex items-center gap-2">
                   <span
-                    className="w-3 h-3 rounded-full shrink-0 shadow-sm"
+                    className="w-3 h-3 rounded-full shrink-0 shadow-xs"
                     style={{ backgroundColor: band.markerHex }}
                   />
-                  <span className="text-[11px] font-semibold text-slate-200">{band.label}</span>
+                  <span className={`text-[11px] font-semibold ${isDayMode ? 'text-slate-700' : 'text-slate-200'}`}>
+                    {band.label}
+                  </span>
                 </div>
-                <span className="text-[10px] font-mono font-bold text-slate-400 bg-slate-950/60 px-1.5 py-0.5 rounded">
+                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                  isDayMode
+                    ? 'bg-slate-200 text-slate-700'
+                    : 'bg-slate-950/60 text-slate-400'
+                }`}>
                   {countInBand}
                 </span>
               </button>
@@ -1487,37 +1736,47 @@ export default function App() {
       {/* HEALTH DIAGNOSTIC MODAL */}
       {showHealthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className={`border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4 ${
+            isDayMode ? 'bg-white border-slate-200 text-slate-900' : 'bg-slate-900 border-slate-800 text-white'
+          }`}>
+            <div className={`flex items-center justify-between border-b pb-3 ${
+              isDayMode ? 'border-slate-200' : 'border-slate-800'
+            }`}>
               <div className="flex items-center gap-2">
-                <Activity className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-base font-extrabold text-white">System & Upstream Health</h3>
+                <Activity className="w-5 h-5 text-emerald-500" />
+                <h3 className={`text-base font-extrabold ${isDayMode ? 'text-slate-900' : 'text-white'}`}>
+                  System & Upstream Health
+                </h3>
               </div>
               <button
                 onClick={() => setShowHealthModal(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
+                className={`p-1 rounded-lg ${isDayMode ? 'text-slate-400 hover:text-slate-700' : 'text-slate-400 hover:text-white'}`}
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {healthLoading ? (
-              <div className="py-8 flex flex-col items-center justify-center gap-2 text-slate-400 text-xs">
-                <RefreshCw className="w-6 h-6 animate-spin text-sky-400" />
+              <div className={`py-8 flex flex-col items-center justify-center gap-2 text-xs ${
+                isDayMode ? 'text-slate-500' : 'text-slate-400'
+              }`}>
+                <RefreshCw className="w-6 h-6 animate-spin text-sky-500" />
                 <span>Checking /api/health and upstream connections...</span>
               </div>
             ) : healthData ? (
               <div className="space-y-4 text-xs">
-                <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
+                <div className={`p-3 rounded-xl border space-y-2 ${
+                  isDayMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
+                }`}>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400 font-semibold">Service Health:</span>
-                    <span className="text-emerald-400 font-black uppercase">{healthData.status || 'OK'}</span>
+                    <span className={`font-semibold ${isDayMode ? 'text-slate-600' : 'text-slate-400'}`}>Service Health:</span>
+                    <span className="text-emerald-500 font-black uppercase">{healthData.status || 'OK'}</span>
                   </div>
                   <div className="flex justify-between items-center">
-                    <span className="text-slate-400 font-semibold">LTA Account Key Status:</span>
+                    <span className={`font-semibold ${isDayMode ? 'text-slate-600' : 'text-slate-400'}`}>LTA Account Key Status:</span>
                     <span
                       className={`font-black ${
-                        healthData.keyConfigured ? 'text-emerald-400' : 'text-amber-400'
+                        healthData.keyConfigured ? 'text-emerald-500' : 'text-amber-500'
                       }`}
                     >
                       {healthData.keyConfigured ? 'Configured (Active)' : 'Not Configured (Using Open Fallback)'}
@@ -1526,21 +1785,25 @@ export default function App() {
                 </div>
 
                 <div className="space-y-2">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <div className={`text-[11px] font-bold uppercase tracking-wider ${
+                    isDayMode ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
                     Upstream Services Connectivity
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                  <div className={`p-3 rounded-xl border flex items-center justify-between ${
+                    isDayMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
+                  }`}>
                     <div>
-                      <div className="font-bold text-slate-200">Data.gov.sg HDB Resale API</div>
-                      <div className="text-[10px] text-slate-500">Public Open Data Dataset</div>
+                      <div className={`font-bold ${isDayMode ? 'text-slate-800' : 'text-slate-200'}`}>Data.gov.sg HDB Resale API</div>
+                      <div className={`text-[10px] ${isDayMode ? 'text-slate-500' : 'text-slate-500'}`}>Public Open Data Dataset</div>
                     </div>
                     <div className="text-right">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           healthData.upstream?.dataGov?.ok
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-amber-500/20 text-amber-400'
+                            ? 'bg-emerald-500/20 text-emerald-600'
+                            : 'bg-amber-500/20 text-amber-600'
                         }`}
                       >
                         HTTP {healthData.upstream?.dataGov?.statusCode || 200}
@@ -1548,17 +1811,19 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-between">
+                  <div className={`p-3 rounded-xl border flex items-center justify-between ${
+                    isDayMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/80 border-slate-800'
+                  }`}>
                     <div>
-                      <div className="font-bold text-slate-200">OneMap Singapore Search & Tiles</div>
-                      <div className="text-[10px] text-slate-500">Geospatial Base Services</div>
+                      <div className={`font-bold ${isDayMode ? 'text-slate-800' : 'text-slate-200'}`}>OneMap Singapore Search & Tiles</div>
+                      <div className={`text-[10px] ${isDayMode ? 'text-slate-500' : 'text-slate-500'}`}>Geospatial Base Services</div>
                     </div>
                     <div className="text-right">
                       <span
                         className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                           healthData.upstream?.oneMap?.ok
-                            ? 'bg-emerald-500/20 text-emerald-400'
-                            : 'bg-amber-500/20 text-amber-400'
+                            ? 'bg-emerald-500/20 text-emerald-600'
+                            : 'bg-amber-500/20 text-amber-600'
                         }`}
                       >
                         HTTP {healthData.upstream?.oneMap?.statusCode || 200}
@@ -1567,7 +1832,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="text-[11px] text-slate-400 italic">
+                <div className={`text-[11px] italic ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>
                   Note: Health diagnostics strictly adhere to safety rules and never expose secret tokens.
                 </div>
               </div>
@@ -1576,7 +1841,11 @@ export default function App() {
             <div className="pt-2">
               <button
                 onClick={() => setShowHealthModal(false)}
-                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs transition-all"
+                className={`w-full py-2.5 rounded-xl font-bold text-xs transition-all ${
+                  isDayMode
+                    ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200'
+                    : 'bg-slate-800 hover:bg-slate-700 text-white'
+                }`}
               >
                 Close Diagnostics
               </button>

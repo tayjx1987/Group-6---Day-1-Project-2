@@ -6,9 +6,14 @@
   width: 100%;
   height: 100%;
   background: #0f172a;
+  transition: background 0.3s ease;
 }
 
-/* Custom dark styled popups */
+body.day-mode .leaflet-container {
+  background: #e2e8f0;
+}
+
+/* Custom dark styled popups (Night Mode) */
 .custom-leaflet-popup .leaflet-popup-content-wrapper {
   background: #0f172a;
   color: #f8fafc;
@@ -39,6 +44,27 @@
 
 .custom-leaflet-popup a.leaflet-popup-close-button:hover {
   color: #ffffff;
+}
+
+/* Day Mode Styled Popups */
+body.day-mode .custom-leaflet-popup .leaflet-popup-content-wrapper {
+  background: #ffffff;
+  color: #0f172a;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+body.day-mode .custom-leaflet-popup .leaflet-popup-tip {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+body.day-mode .custom-leaflet-popup a.leaflet-popup-close-button {
+  color: #64748b;
+}
+
+body.day-mode .custom-leaflet-popup a.leaflet-popup-close-button:hover {
+  color: #0f172a;
 }
 
 /* Custom cluster markers */
