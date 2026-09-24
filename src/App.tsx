@@ -51,6 +51,12 @@ export default function App() {
   const mrtLayerGroupRef = useRef<any>(null);
   const radiusLayerRef = useRef<any>(null);
   const searchMarkerRef = useRef<any>(null);
+  const markerMapRef = useRef<Map<string | number, any>>(new Map());
+
+  const [isMapReady, setIsMapReady] = useState<boolean>(false);
+  const [enableClustering, setEnableClustering] = useState<boolean>(false); // False by default so every flat location is directly visible on map
+  const [filterByBudget, setFilterByBudget] = useState<boolean>(true); // Auto-filters map to calculated budget by default
+  const [customBudgetCap, setCustomBudgetCap] = useState<number | null>(null);
 
   const [transactions, setTransactions] = useState<HdbTransaction[]>(INITIAL_TRANSACTIONS);
   const [selectedFlat, setSelectedFlat] = useState<HdbTransaction | null>(null);
@@ -98,7 +104,7 @@ export default function App() {
   // Filter State
   const [selectedTowns, setSelectedTowns] = useState<string[]>([]);
   const [selectedFlatTypes, setSelectedFlatTypes] = useState<string[]>([]);
-  const [minPrice, setMinPrice] = useState<number>(200000);
+  const [minPrice, setMinPrice] = useState<number>(0);
   const [maxPrice, setMaxPrice] = useState<number>(1500000);
   const [minLeaseYears, setMinLeaseYears] = useState<number>(0);
   const [activePriceBands, setActivePriceBands] = useState<string[]>(['budget', 'mid', 'prime', 'million']);
@@ -154,16 +160,15 @@ export default function App() {
     };
   }, [monthlyIncome, cashDownpayment, loanInterestRate, loanTenureYears, loanType]);
 
-  // Apply budget filter to map
-  const applyBudgetToMap = () => {
-    setMaxPrice(budgetCalculations.calculatedMaxPrice);
-    setMinPrice(200000);
-    setActiveTab('filter');
-    setFetchNotification(`Applied budget filter: Flats up to ${formatSGD(budgetCalculations.calculatedMaxPrice)}`);
-    setTimeout(() => setFetchNotification(null), 4000);
-  };
+  // Active Effective Budget Cap:
+  // When filterByBudget is true and no manual override is set, automatically filter to budgetCalculations.calculatedMaxPrice
+  const effectiveBudgetMax = customBudgetCap !== null
+    ? customBudgetCap
+    : filterByBudget
+    ? budgetCalculations.calculatedMaxPrice
+    : maxPrice;
 
-  // Filtered transactions
+  // Filtered transactions (automatically driven by effective budget cap)
   const filteredTransactions = useMemo(() => {
     return transactions.filter(item => {
       // Town filter
@@ -174,8 +179,11 @@ export default function App() {
       if (selectedFlatTypes.length > 0 && !selectedFlatTypes.includes(item.flat_type)) {
         return false;
       }
-      // Price range
-      if (item.resale_price < minPrice || item.resale_price > maxPrice) {
+      // Budget filter: ONLY show flats within budget cap!
+      if (item.resale_price > effectiveBudgetMax) {
+        return false;
+      }
+      if (minPrice > 0 && item.resale_price < minPrice) {
         return false;
       }
       // Remaining lease
@@ -184,14 +192,78 @@ export default function App() {
         const years = leaseMatch ? parseInt(leaseMatch[1], 10) : 0;
         if (years < minLeaseYears) return false;
       }
-      // Price bands filter
-      const band = getPriceBand(item.resale_price);
-      if (!activePriceBands.includes(band.id)) {
-        return false;
+      // Price bands filter (only if user changed active price bands from default 4)
+      if (activePriceBands.length < 4) {
+        const band = getPriceBand(item.resale_price);
+        if (!activePriceBands.includes(band.id)) {
+          return false;
+        }
       }
       return true;
     });
-  }, [transactions, selectedTowns, selectedFlatTypes, minPrice, maxPrice, minLeaseYears, activePriceBands]);
+  }, [transactions, selectedTowns, selectedFlatTypes, minPrice, effectiveBudgetMax, minLeaseYears, activePriceBands]);
+
+  // Apply budget filter to map explicitly
+  const applyBudgetToMap = () => {
+    setFilterByBudget(true);
+    setCustomBudgetCap(budgetCalculations.calculatedMaxPrice);
+    setMaxPrice(budgetCalculations.calculatedMaxPrice);
+    setFetchNotification(`Map filtered: Flats up to ${formatSGD(budgetCalculations.calculatedMaxPrice)}`);
+    setTimeout(() => setFetchNotification(null), 4000);
+    fitMapToFilteredFlats();
+  };
+
+  // Zoom map to fit all currently filtered flats
+  const fitMapToFilteredFlats = useCallback(() => {
+    if (!mapInstanceRef.current || filteredTransactions.length === 0 || typeof L === 'undefined') return;
+    const latLngs = filteredTransactions.map(f => [f.lat, f.lng]);
+    const bounds = L.latLngBounds(latLngs);
+    mapInstanceRef.current.fitBounds(bounds, {
+      padding: [50, 50],
+      maxZoom: 15,
+      duration: 0.8
+    });
+  }, [filteredTransactions]);
+
+  // Focus and open flat popup on map
+  const focusFlatOnMap = useCallback((flat: HdbTransaction) => {
+    setSelectedFlat(flat);
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current.flyTo([flat.lat, flat.lng], 16, { duration: 0.8 });
+      setTimeout(() => {
+        const marker = markerMapRef.current.get(flat._id);
+        if (marker) {
+          marker.openPopup();
+        }
+      }, 500);
+    }
+  }, []);
+
+  // Quick budget stepper
+  const handleBudgetStep = (delta: number) => {
+    setFilterByBudget(true);
+    const newCap = Math.max(200000, Math.min(1500000, effectiveBudgetMax + delta));
+    setCustomBudgetCap(newCap);
+    setFetchNotification(`Adjusted budget limit: ${formatSGD(newCap)}`);
+    setTimeout(() => setFetchNotification(null), 2500);
+  };
+
+  // Quick budget preset
+  const setBudgetPreset = (amount: number | null) => {
+    if (amount === null) {
+      setFilterByBudget(false);
+      setCustomBudgetCap(1500000);
+      setMaxPrice(1500000);
+      setMinPrice(0);
+      setFetchNotification('Showing all flats across Singapore');
+    } else {
+      setFilterByBudget(true);
+      setCustomBudgetCap(amount);
+      setMaxPrice(amount);
+      setFetchNotification(`Filtered map to flats ≤ ${formatSGD(amount)}`);
+    }
+    setTimeout(() => setFetchNotification(null), 3000);
+  };
 
   // Summary statistics
   const summaryStats = useMemo(() => {
@@ -257,36 +329,36 @@ export default function App() {
     const bg = isDayMode ? '#ffffff' : '#0f172a';
     const textColor = isDayMode ? '#0f172a' : '#ffffff';
     const boxShadow = isDayMode
-      ? `0 2px 8px rgba(0, 0, 0, 0.2), 0 0 6px ${band.markerHex}30`
-      : `0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px ${band.markerHex}40`;
+      ? `0 3px 10px rgba(0, 0, 0, 0.22), 0 0 8px ${band.markerHex}40`
+      : `0 4px 14px rgba(0, 0, 0, 0.6), 0 0 10px ${band.markerHex}50`;
 
     const html = `
-      <div style="
-        display: flex;
+      <div class="flat-price-pin" style="
+        display: inline-flex;
         align-items: center;
         background: ${bg};
         color: ${textColor};
         border: 2px solid ${band.markerHex};
         border-radius: 9999px;
-        padding: 2px 7px;
+        padding: 3px 8px;
         box-shadow: ${boxShadow};
         font-family: 'Plus Jakarta Sans', sans-serif;
         font-size: 11px;
-        font-weight: 700;
+        font-weight: 800;
         cursor: pointer;
-        transform: translate(-50%, -50%);
         white-space: nowrap;
+        pointer-events: auto;
       ">
-        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${band.markerHex}; margin-right:4px;"></span>
+        <span style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${band.markerHex}; margin-right:5px; box-shadow: 0 0 4px ${band.markerHex};"></span>
         $${priceK}
       </div>
     `;
 
     return L.divIcon({
       html,
-      className: '',
-      iconSize: [60, 24],
-      iconAnchor: [30, 12]
+      className: 'flat-pin-wrapper',
+      iconSize: [66, 26],
+      iconAnchor: [33, 13]
     });
   }, [isDayMode]);
 
@@ -312,7 +384,7 @@ export default function App() {
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     // Initial tile layer retrieved from OneMap API via backend proxy referring to Vercel variables
-    const initialTileUrl = '/api/tile?style=Night&z={z}&x={x}&y={y}';
+    const initialTileUrl = `/api/tile?style=${mapTheme}&z={z}&x={x}&y={y}`;
     const tileLayer = L.tileLayer(initialTileUrl, {
       maxZoom: 18,
       minZoom: 11,
@@ -323,10 +395,11 @@ export default function App() {
     setTileLayerRef(tileLayer);
     mapInstanceRef.current = map;
 
-    // Initialize Leaflet Marker Cluster Group
-    if (typeof L.markerClusterGroup === 'function') {
-      const clusterGroup = L.markerClusterGroup({
-        maxClusterRadius: 50,
+    // Initialize marker cluster group with robust fallback
+    let clusterGroup: any = null;
+    if (enableClustering && typeof L.markerClusterGroup === 'function') {
+      clusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 35,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         zoomToBoundsOnClick: true,
@@ -334,7 +407,6 @@ export default function App() {
           const markers = cluster.getAllChildMarkers();
           const count = markers.length;
 
-          // Compute average price of cluster to color code
           let totalPrice = 0;
           markers.forEach((m: any) => {
             if (m.options && m.options.flatData) {
@@ -361,14 +433,16 @@ export default function App() {
               border: 3px solid ${band.markerHex};
               box-shadow: ${shadow};
             ">${count}</div>`,
-            className: '',
+            className: 'cluster-icon-clean',
             iconSize: [size, size]
           });
         }
       });
-      map.addLayer(clusterGroup);
-      clusterGroupRef.current = clusterGroup;
+    } else {
+      clusterGroup = L.layerGroup();
     }
+    map.addLayer(clusterGroup);
+    clusterGroupRef.current = clusterGroup;
 
     // Initialize MRT stations layer
     const mrtGroup = L.layerGroup();
@@ -380,11 +454,70 @@ export default function App() {
     map.addLayer(radiusGroup);
     radiusLayerRef.current = radiusGroup;
 
+    setIsMapReady(true);
+
     return () => {
       map.remove();
       mapInstanceRef.current = null;
+      setIsMapReady(false);
     };
   }, []);
+
+  // Switch between individual pins and clustering
+  useEffect(() => {
+    if (!mapInstanceRef.current || !isMapReady || typeof L === 'undefined') return;
+
+    if (clusterGroupRef.current) {
+      mapInstanceRef.current.removeLayer(clusterGroupRef.current);
+    }
+
+    let newGroup: any = null;
+    if (enableClustering && typeof L.markerClusterGroup === 'function') {
+      newGroup = L.markerClusterGroup({
+        maxClusterRadius: 35,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: true,
+        iconCreateFunction: (cluster: any) => {
+          const markers = cluster.getAllChildMarkers();
+          const count = markers.length;
+          let totalPrice = 0;
+          markers.forEach((m: any) => {
+            if (m.options && m.options.flatData) {
+              totalPrice += m.options.flatData.resale_price;
+            }
+          });
+          const avgPrice = count > 0 ? totalPrice / count : 500000;
+          const band = getPriceBand(avgPrice);
+          const size = count < 10 ? 34 : count < 50 ? 42 : 48;
+          const isDay = typeof document !== 'undefined' && document.body.classList.contains('day-mode');
+          const bg = isDay ? '#ffffff' : '#0f172a';
+          const textColor = isDay ? '#0f172a' : '#ffffff';
+          const shadow = isDay
+            ? `0 2px 10px rgba(0,0,0,0.25), 0 0 10px ${band.markerHex}60`
+            : `0 0 14px ${band.markerHex}60`;
+
+          return L.divIcon({
+            html: `<div class="custom-cluster-marker" style="
+              width: ${size}px;
+              height: ${size}px;
+              background: ${bg};
+              color: ${textColor};
+              border: 3px solid ${band.markerHex};
+              box-shadow: ${shadow};
+            ">${count}</div>`,
+            className: 'cluster-icon-clean',
+            iconSize: [size, size]
+          });
+        }
+      });
+    } else {
+      newGroup = L.layerGroup();
+    }
+
+    mapInstanceRef.current.addLayer(newGroup);
+    clusterGroupRef.current = newGroup;
+  }, [enableClustering, isMapReady]);
 
   // Update map tile theme retrieved from OneMap API
   const toggleMapTheme = (theme: 'Default' | 'Night') => {
@@ -617,6 +750,7 @@ export default function App() {
     if (!clusterGroupRef.current || typeof L === 'undefined') return;
 
     clusterGroupRef.current.clearLayers();
+    markerMapRef.current.clear();
 
     filteredTransactions.forEach(flat => {
       const icon = createFlatMarkerIcon(flat);
@@ -635,8 +769,9 @@ export default function App() {
       });
 
       clusterGroupRef.current.addLayer(marker);
+      markerMapRef.current.set(flat._id, marker);
     });
-  }, [filteredTransactions, createFlatMarkerIcon, buildPopupHtml, isDayMode]);
+  }, [filteredTransactions, createFlatMarkerIcon, buildPopupHtml, isDayMode, isMapReady, enableClustering]);
 
   // Geocoding and Search Handler
   const handleAddressSearch = async (e: React.FormEvent) => {
@@ -1014,6 +1149,118 @@ export default function App() {
         </div>
       )}
 
+      {/* FLOATING QUICK BUDGET CONTROLLER ON MAP */}
+      <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 z-20 pointer-events-auto rounded-2xl border backdrop-blur-xl shadow-2xl p-2 md:p-2.5 flex flex-wrap items-center justify-center gap-2 md:gap-3 transition-all max-w-[94vw] ${
+        isDayMode
+          ? 'bg-white/95 border-slate-200/90 text-slate-800'
+          : 'bg-slate-900/95 border-slate-800 text-slate-100'
+      }`}>
+        {/* Budget Limit Display */}
+        <div className="flex items-center gap-2 pr-2 border-r border-slate-200 dark:border-slate-800">
+          <div className="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-500">
+            <DollarSign className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Budget Limit</div>
+            <div className="text-xs md:text-sm font-black text-emerald-500">{formatSGD(effectiveBudgetMax)}</div>
+          </div>
+        </div>
+
+        {/* Stepper Buttons */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => handleBudgetStep(-25000)}
+            className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all ${
+              isDayMode
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title="Decrease budget limit by $25k"
+          >
+            -$25k
+          </button>
+          <button
+            onClick={() => handleBudgetStep(25000)}
+            className={`px-2 py-1 rounded-lg text-xs font-bold border transition-all ${
+              isDayMode
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+            title="Increase budget limit by $25k"
+          >
+            +$25k
+          </button>
+        </div>
+
+        {/* Quick Presets */}
+        <div className="hidden sm:flex items-center gap-1">
+          {[450000, 650000, 850000].map(amt => (
+            <button
+              key={amt}
+              onClick={() => setBudgetPreset(amt)}
+              className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                effectiveBudgetMax === amt
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                  : isDayMode
+                  ? 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                  : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+              }`}
+            >
+              ≤${amt / 1000}k
+            </button>
+          ))}
+          <button
+            onClick={() => setBudgetPreset(null)}
+            className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+              customBudgetCap === 1500000 && !filterByBudget
+                ? 'bg-sky-600 text-white border-sky-500'
+                : isDayMode
+                ? 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700'
+            }`}
+          >
+            All
+          </button>
+        </div>
+
+        {/* Flats count */}
+        <div className="px-2.5 py-1 rounded-xl bg-sky-500/15 border border-sky-500/30 text-sky-400 text-xs font-bold flex items-center gap-1.5">
+          <MapPin className="w-3.5 h-3.5 text-sky-400" />
+          <span>{filteredTransactions.length} flats</span>
+        </div>
+
+        {/* Fit Bounds Button */}
+        <button
+          onClick={fitMapToFilteredFlats}
+          className={`p-1.5 rounded-xl border transition-all ${
+            isDayMode
+              ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+              : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+          }`}
+          title="Zoom to fit all filtered flats on map"
+        >
+          <LocateFixed className="w-4 h-4 text-sky-400" />
+        </button>
+
+        {/* Pin mode toggle (Pins vs Clusters) */}
+        <button
+          onClick={() => setEnableClustering(prev => !prev)}
+          className={`px-2 py-1 rounded-xl border text-[11px] font-bold flex items-center gap-1.5 transition-all ${
+            enableClustering
+              ? isDayMode
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                : 'bg-indigo-500/20 border-indigo-500/40 text-indigo-300'
+              : isDayMode
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+              : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+          }`}
+          title={enableClustering ? 'Currently grouping into clusters. Click for individual pins.' : 'Currently showing individual flat pins. Click to cluster.'}
+        >
+          <Layers className="w-3.5 h-3.5" />
+          <span>{enableClustering ? 'Clusters' : 'All Pins'}</span>
+        </button>
+      </div>
+
       {/* LEFT CONTROL PANEL (DRAWER) */}
       <aside
         className={`absolute top-20 bottom-4 left-4 z-20 w-96 max-w-[calc(100vw-2rem)] flex flex-col border rounded-2xl shadow-2xl backdrop-blur-xl overflow-hidden transition-all duration-300 ${
@@ -1143,7 +1390,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Price Range Controls */}
+              {/* Budget Limit & Price Range Controls */}
               <div className={`p-3.5 rounded-xl border ${
                 isDayMode ? 'bg-slate-50 border-slate-200' : 'bg-slate-950/40 border-slate-800'
               }`}>
@@ -1151,44 +1398,84 @@ export default function App() {
                   <label className={`text-[11px] font-bold uppercase tracking-wider ${
                     isDayMode ? 'text-slate-500' : 'text-slate-400'
                   }`}>
-                    Resale Price Range
+                    Maximum Budget Cap
                   </label>
-                  <span className="text-xs font-mono font-bold text-sky-500">
-                    {formatSGD(minPrice)} - {formatSGD(maxPrice)}
+                  <span className="text-xs font-mono font-black text-emerald-500">
+                    ≤ {formatSGD(effectiveBudgetMax)}
                   </span>
                 </div>
 
                 <div className="space-y-3 pt-1">
                   <div>
-                    <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                      <span>Min: {formatSGD(minPrice)}</span>
-                      <span>$200k - $1M</span>
-                    </div>
                     <input
                       type="range"
-                      min={200000}
-                      max={1000000}
+                      min={250000}
+                      max={1500000}
                       step={25000}
-                      value={minPrice}
-                      onChange={e => setMinPrice(Math.min(Number(e.target.value), maxPrice - 25000))}
-                      className={`w-full accent-sky-500 h-1.5 rounded-lg cursor-pointer ${
+                      value={effectiveBudgetMax}
+                      onChange={e => {
+                        const val = Number(e.target.value);
+                        setFilterByBudget(true);
+                        setCustomBudgetCap(val);
+                        setMaxPrice(val);
+                      }}
+                      className={`w-full accent-emerald-500 h-2 rounded-lg cursor-pointer ${
                         isDayMode ? 'bg-slate-200' : 'bg-slate-800'
                       }`}
                     />
+                    <div className="flex justify-between text-[10px] text-slate-500 mt-1">
+                      <span>$250k</span>
+                      <span>$750k</span>
+                      <span>$1.5M</span>
+                    </div>
                   </div>
 
-                  <div>
+                  {/* Quick Budget Chips */}
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {[400000, 550000, 700000, 900000].map(amt => (
+                      <button
+                        key={amt}
+                        type="button"
+                        onClick={() => setBudgetPreset(amt)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                          effectiveBudgetMax === amt
+                            ? 'bg-emerald-600 text-white border-emerald-500 shadow-xs'
+                            : isDayMode
+                            ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                        }`}
+                      >
+                        ≤ ${amt / 1000}k
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setBudgetPreset(null)}
+                      className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                        customBudgetCap === 1500000 && !filterByBudget
+                          ? 'bg-sky-600 text-white border-sky-500 shadow-xs'
+                          : isDayMode
+                          ? 'bg-white hover:bg-slate-100 text-slate-700 border-slate-300'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                      }`}
+                    >
+                      Show All
+                    </button>
+                  </div>
+
+                  {/* Optional Minimum Price Slider */}
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
                     <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                      <span>Max: {formatSGD(maxPrice)}</span>
-                      <span>$400k - $1.5M</span>
+                      <span>Min Floor: {minPrice > 0 ? formatSGD(minPrice) : 'No min ($0)'}</span>
+                      <span>$0 - $800k</span>
                     </div>
                     <input
                       type="range"
-                      min={400000}
-                      max={1500000}
+                      min={0}
+                      max={800000}
                       step={25000}
-                      value={maxPrice}
-                      onChange={e => setMaxPrice(Math.max(Number(e.target.value), minPrice + 25000))}
+                      value={minPrice}
+                      onChange={e => setMinPrice(Math.min(Number(e.target.value), effectiveBudgetMax - 25000))}
                       className={`w-full accent-sky-500 h-1.5 rounded-lg cursor-pointer ${
                         isDayMode ? 'bg-slate-200' : 'bg-slate-800'
                       }`}
@@ -1421,7 +1708,11 @@ export default function App() {
                     type="number"
                     step={500}
                     value={monthlyIncome}
-                    onChange={e => setMonthlyIncome(Math.max(0, Number(e.target.value)))}
+                    onChange={e => {
+                      setMonthlyIncome(Math.max(0, Number(e.target.value)));
+                      setFilterByBudget(true);
+                      setCustomBudgetCap(null);
+                    }}
                     className={`w-full pl-9 pr-3 py-2 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none border ${
                       isDayMode
                         ? 'bg-white border-slate-300 text-slate-900'
@@ -1447,7 +1738,11 @@ export default function App() {
                     type="number"
                     step={10000}
                     value={cashDownpayment}
-                    onChange={e => setCashDownpayment(Math.max(0, Number(e.target.value)))}
+                    onChange={e => {
+                      setCashDownpayment(Math.max(0, Number(e.target.value)));
+                      setFilterByBudget(true);
+                      setCustomBudgetCap(null);
+                    }}
                     className={`w-full pl-9 pr-3 py-2 rounded-xl text-sm font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none border ${
                       isDayMode
                         ? 'bg-white border-slate-300 text-slate-900'
@@ -1469,6 +1764,8 @@ export default function App() {
                     onClick={() => {
                       setLoanType('hdb');
                       setLoanInterestRate(2.6);
+                      setFilterByBudget(true);
+                      setCustomBudgetCap(null);
                     }}
                     className={`p-2.5 rounded-xl border text-left font-bold transition-all ${
                       loanType === 'hdb'
@@ -1489,6 +1786,8 @@ export default function App() {
                     onClick={() => {
                       setLoanType('bank');
                       setLoanInterestRate(3.2);
+                      setFilterByBudget(true);
+                      setCustomBudgetCap(null);
                     }}
                     className={`p-2.5 rounded-xl border text-left font-bold transition-all ${
                       loanType === 'bank'
@@ -1522,7 +1821,11 @@ export default function App() {
                   max={30}
                   step={1}
                   value={loanTenureYears}
-                  onChange={e => setLoanTenureYears(Number(e.target.value))}
+                  onChange={e => {
+                    setLoanTenureYears(Number(e.target.value));
+                    setFilterByBudget(true);
+                    setCustomBudgetCap(null);
+                  }}
                   className={`w-full accent-emerald-500 h-1.5 rounded-lg cursor-pointer ${
                     isDayMode ? 'bg-slate-200' : 'bg-slate-800'
                   }`}
@@ -1571,14 +1874,88 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Apply Button */}
+                {/* Live Filter Indicator */}
+                <div className="p-2.5 rounded-xl border bg-emerald-500/10 border-emerald-500/30 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <span className="font-bold text-emerald-500">Map Dynamically Filtered</span>
+                  </div>
+                  <span className="font-extrabold text-emerald-400">
+                    {filteredTransactions.length} flats
+                  </span>
+                </div>
+
+                {/* Fit Map Button */}
                 <button
-                  onClick={applyBudgetToMap}
-                  className="w-full mt-2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-1.5"
+                  onClick={fitMapToFilteredFlats}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-900/30 transition-all flex items-center justify-center gap-1.5 active:scale-98"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span>Filter Map by This Budget</span>
+                  <LocateFixed className="w-4 h-4" />
+                  <span>Fit Map to {filteredTransactions.length} Affordable Flats</span>
                 </button>
+              </div>
+
+              {/* Matching Affordable Flats List */}
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`text-[11px] font-bold uppercase tracking-wider ${
+                    isDayMode ? 'text-slate-500' : 'text-slate-400'
+                  }`}>
+                    Affordable Flats ({filteredTransactions.length})
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    Click card to view on map
+                  </span>
+                </div>
+
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {filteredTransactions.length === 0 ? (
+                    <div className={`p-4 rounded-xl text-center text-xs border ${
+                      isDayMode ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-slate-900/50 border-slate-800 text-slate-400'
+                    }`}>
+                      No flats found under {formatSGD(effectiveBudgetMax)}. Try increasing your income or downpayment.
+                    </div>
+                  ) : (
+                    filteredTransactions.slice(0, 15).map(flat => {
+                      const band = getPriceBand(flat.resale_price);
+                      return (
+                        <div
+                          key={flat._id}
+                          onClick={() => focusFlatOnMap(flat)}
+                          className={`p-2.5 rounded-xl border cursor-pointer transition-all hover:scale-[1.01] ${
+                            selectedFlat?._id === flat._id
+                              ? isDayMode
+                                ? 'bg-sky-50 border-sky-400 shadow-sm'
+                                : 'bg-sky-950/40 border-sky-500/50 shadow-md'
+                              : isDayMode
+                              ? 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+                              : 'bg-slate-900/60 hover:bg-slate-800/60 border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="text-xs font-bold">{flat.block} {flat.street_name}</div>
+                              <div className={`text-[10px] ${isDayMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                                {flat.town} • {flat.flat_type} • {flat.storey_range}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xs font-black font-mono" style={{ color: band.markerHex }}>
+                                {formatSGD(flat.resale_price)}
+                              </div>
+                              <div className="text-[9px] text-emerald-500 font-semibold">
+                                In Budget
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             </div>
           )}
