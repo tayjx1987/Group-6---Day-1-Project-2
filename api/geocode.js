@@ -1,6 +1,6 @@
 /**
  * OneMap Search API Proxy endpoint for address and postal code geocoding.
- * Refers to Vercel application environment variables for authorization.
+ * Refers to Vercel application environment variables (ONE_MAP_ACCESS_TOKEN) for authorization.
  */
 export default async function handler(req, res) {
   const query = req.query.query || req.query.q || '';
@@ -13,16 +13,21 @@ export default async function handler(req, res) {
     'User-Agent': 'SGHDBResaleMapExplorer/1.0'
   };
 
-  // Refer to Vercel app environment variables
-  if (process.env.LTA_ACCOUNT_KEY && process.env.LTA_ACCOUNT_KEY.trim() !== '') {
-    const key = process.env.LTA_ACCOUNT_KEY.trim();
-    headers['Authorization'] = key.startsWith('Bearer ') ? key : `Bearer ${key}`;
-    headers['AccountKey'] = key;
+  // Refer to Vercel app environment variables (ONE_MAP_ACCESS_TOKEN)
+  const token = (
+    process.env.ONE_MAP_ACCESS_TOKEN ||
+    process.env.ONEMAP_ACCESS_TOKEN ||
+    process.env.LTA_ACCOUNT_KEY ||
+    ''
+  ).trim();
+
+  if (token) {
+    headers['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
   }
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 7000);
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     const url = `https://www.onemap.gov.sg/api/common/elastic/search?searchVal=${encodeURIComponent(
       query.trim()
     )}&returnGeom=Y&getAddrDetails=Y&pageNum=1`;

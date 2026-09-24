@@ -80,7 +80,7 @@ export default function App() {
     const newTheme = mode === 'day' ? 'Default' : 'Night';
     setMapTheme(newTheme);
     if (tileLayerRef && mapInstanceRef.current) {
-      tileLayerRef.setUrl(`/api/tiles/${newTheme}/{z}/{x}/{y}.png`);
+      tileLayerRef.setUrl(`/api/tile?style=${newTheme}&z={z}&x={x}&y={y}`);
     }
   };
 
@@ -312,7 +312,7 @@ export default function App() {
     L.control.zoom({ position: 'topright' }).addTo(map);
 
     // Initial tile layer retrieved from OneMap API via backend proxy referring to Vercel variables
-    const initialTileUrl = '/api/tiles/Night/{z}/{x}/{y}.png';
+    const initialTileUrl = '/api/tile?style=Night&z={z}&x={x}&y={y}';
     const tileLayer = L.tileLayer(initialTileUrl, {
       maxZoom: 18,
       minZoom: 11,
@@ -390,7 +390,7 @@ export default function App() {
   const toggleMapTheme = (theme: 'Default' | 'Night') => {
     setMapTheme(theme);
     if (tileLayerRef && mapInstanceRef.current) {
-      tileLayerRef.setUrl(`/api/tiles/${theme}/{z}/{x}/{y}.png`);
+      tileLayerRef.setUrl(`/api/tile?style=${theme}&z={z}&x={x}&y={y}`);
     }
   };
 

@@ -1,0 +1,12 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/tiles/:style/:z/:x/:y.png",
+      "destination": "/api/tile?style=:style&z=:z&x=:x&y=:y"
+    },
+    {
+      "source": "/api/tiles/:path*",
+      "destination": "/api/tile"
+    }
+  ]
+}

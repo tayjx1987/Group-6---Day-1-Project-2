@@ -5,7 +5,9 @@
 export default async function handler(req, res) {
   // Check if environment key is present without exposing its value
   const keyConfigured = Boolean(
-    process.env.LTA_ACCOUNT_KEY && process.env.LTA_ACCOUNT_KEY.trim().length > 0
+    (process.env.ONE_MAP_ACCESS_TOKEN && process.env.ONE_MAP_ACCESS_TOKEN.trim().length > 0) ||
+    (process.env.ONEMAP_ACCESS_TOKEN && process.env.ONEMAP_ACCESS_TOKEN.trim().length > 0) ||
+    (process.env.LTA_ACCOUNT_KEY && process.env.LTA_ACCOUNT_KEY.trim().length > 0)
   );
 
   let dataGovStatus = null;
@@ -37,10 +39,15 @@ export default async function handler(req, res) {
       'Accept': 'application/json',
       'User-Agent': 'SGHDBResaleMapExplorer/1.0'
     };
-    if (keyConfigured) {
-      const token = process.env.LTA_ACCOUNT_KEY.trim();
+    const token = (
+      process.env.ONE_MAP_ACCESS_TOKEN ||
+      process.env.ONEMAP_ACCESS_TOKEN ||
+      process.env.LTA_ACCOUNT_KEY ||
+      ''
+    ).trim();
+
+    if (token) {
       oneMapHeaders['Authorization'] = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
-      oneMapHeaders['AccountKey'] = token;
     }
     const oneMapResp = await fetch(
       'https://www.onemap.gov.sg/api/common/elastic/search?searchVal=Ang+Mo+Kio&returnGeom=Y&getAddrDetails=Y&pageNum=1',
